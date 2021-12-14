@@ -7,6 +7,8 @@
 
 if(!defined('DOKU_INC')) die();
 
+use \dokuwiki\HTTP\DokuHTTPClient;
+
 class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
 
     // manual mapping of ISO-languages to DeepL-languages to fix inconsistent naming
@@ -131,7 +133,6 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
 
     private function deepl_translate($text, $target_lang): string {
         if (!$this->getConf('api_key')) return '';
-        $curl = curl_init();
 
         $text = $this->insert_ignore_tags($text);
 
@@ -144,22 +145,16 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
         ];
 
         if ($this->getConf('api') == 'free') {
-            curl_setopt($curl, CURLOPT_URL, 'https://api-free.deepl.com/v2/translate');
+            $url = 'https://api-free.deepl.com/v2/translate';
         } else {
-            curl_setopt($curl, CURLOPT_URL, 'https://api.deepl.com/v2/translate');
+            $url = 'https://api.deepl.com/v2/translate';
         }
 
-        curl_setopt($curl,CURLOPT_POST, 1);
-        curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1);
-        curl_setopt($curl, CURLOPT_POSTFIELDS, $data);
-
-        $raw_response = curl_exec($curl);
+        $http = new DokuHTTPClient();
+        $raw_response = $http->post($url, $data);
 
         // if any error occurred return an empty string
-        if (curl_getinfo($curl, CURLINFO_RESPONSE_CODE) >= 400) {
-            curl_close($curl);
-            return '';
-        }
+        if ($http->status >= 400) return '';
 
         $json_response = json_decode($raw_response, true);
         $translated_text = $json_response['translations'][0]['text'];
