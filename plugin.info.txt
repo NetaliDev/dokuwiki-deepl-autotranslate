@@ -1,7 +1,7 @@
 base   deeplautotranslate
 author Jennifer Graul
 email  me@netali.de
-date   2021-12-11
-name   DeepL autotranslate plugin
+date   2021-12-14
+name   DeepL Autotranslate Plugin
 desc   This plugin automatically translates wiki pages using the DeepL API
 url    https://www.dokuwiki.org/plugin:deeplautotranslate

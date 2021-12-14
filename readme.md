@@ -1,4 +1,4 @@
-# DokuWiki DeepL autotranslate plugin
+# DokuWiki DeepL Autotranslate Plugin
 This plugin automatically creates translations based on the [Translation plugin](https://www.dokuwiki.org/plugin:translation) page structure using the [DeepL](https://deepl.com) API. 
 
 ## Usage and configuration
