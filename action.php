@@ -61,9 +61,7 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
         $org_page_text = $this->get_org_page_text();
         $translated_text = $this->deepl_translate($org_page_text, $this->langs[$this->get_target_lang()]);
 
-        if ($translated_text === '') {
-            return;
-        }
+        if ($translated_text === '') return;
 
         saveWikiText($ID, $translated_text, 'Automatic translation');
 
@@ -140,7 +138,7 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
             'auth_key' => $this->getConf('api_key'),
             'target_lang' => $target_lang,
             'tag_handling' => 'xml',
-            'ignore_tags' => 'ignore',
+            'ignore_tags' => 'ignore,code,file,php',
             'text' => $text
         ];
 
