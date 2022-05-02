@@ -8,6 +8,7 @@
 if(!defined('DOKU_INC')) die();
 
 use \dokuwiki\HTTP\DokuHTTPClient;
+use \dokuwiki\plugin\deeplautotranslate\MenuItem;
 
 class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
 
@@ -47,16 +48,37 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
     public function register(Doku_Event_Handler $controller) {
         $controller->register_hook('ACTION_ACT_PREPROCESS','BEFORE', $this, 'autotrans_direct');
         $controller->register_hook('COMMON_PAGETPL_LOAD','AFTER', $this, 'autotrans_editor');
+        $controller->register_hook('MENU_ITEMS_ASSEMBLY', 'AFTER', $this, 'add_menu_button');
+    }
+
+    public function add_menu_button(Doku_Event $event) {
+        if ($event->data['view'] != 'page') return;
+
+        if (!$this->getConf('show_button')) return;
+        if (!$this->check_do_translation(true)) return;
+
+        array_splice($event->data['items'], -1, 0, [new MenuItem()]);
     }
 
     public function autotrans_direct(Doku_Event $event, $param) {
-        if ($this->get_mode() != 'direct') return;
-        if ($event->data != 'show') return;
-
-        if (!$this->check_do_translation()) return;
-
         global $ID;
-        global $INFO;
+
+        // check if action is show or translate
+        if ($event->data != 'show' and $event->data != 'translate') return;
+
+        // abort if action is translate and the translate button is disabled
+        if ($event->data == 'translate' and !$this->getConf('show_button')) return;
+
+        // do nothing on show action when mode is not direct
+        if ($event->data == 'show' and $this->get_mode() != 'direct') return;
+
+        // allow translation of existing pages is we are in the translate action
+        $allow_existing = ($event->data == 'translate');
+
+        // reset action to show
+        $event->data = 'show';
+
+        if (!$this->check_do_translation($allow_existing)) return;
 
         $org_page_text = $this->get_org_page_text();
         $translated_text = $this->deepl_translate($org_page_text, $this->langs[$this->get_target_lang()]);
@@ -65,7 +87,8 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
 
         saveWikiText($ID, $translated_text, 'Automatic translation');
 
-        $INFO = pageinfo();
+        // reload the page after translation
+        send_redirect(wl($ID));
     }
 
     public function autotrans_editor(Doku_Event $event, $param) {
@@ -105,12 +128,16 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
         return rawWiki($org_id);
     }
 
-    private function check_do_translation(): bool {
+    private function check_do_translation($allow_existing = false): bool {
         global $INFO;
-        // only translate if the current page does not exist
-        if ($INFO['exists']) return false;
-
         global $ID;
+
+        // only translate if the current page does not exist
+        if ($INFO['exists'] and !$allow_existing) return false;
+
+        // permission check
+        $perm = auth_quickaclcheck($ID);
+        if (($INFO['exists'] and $perm < AUTH_EDIT) or (!$INFO['exists'] and $perm < AUTH_CREATE)) return false;
 
         // skip blacklisted namespaces and pages
         if ($this->getConf('blacklist_regex')) {
