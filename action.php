@@ -178,13 +178,31 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
         $http = new DokuHTTPClient();
         $raw_response = $http->post($url, $data);
 
-        // if any error occurred return an empty string
-        if ($http->status >= 400) return '';
+
+        if ($http->status >= 400) {
+            // add error messages
+            switch ($http->status) {
+                case 403:
+                    msg($this->getLang('msg_translation_fail_bad_key'), -1);
+                    break;
+                case 456:
+                    msg($this->getLang('msg_translation_fail_quota_exceeded'), -1);
+                    break;
+                default:
+                    msg($this->getLang('msg_translation_fail'), -1);
+                    break;
+            }
+
+            // if any error occurred return an empty string
+            return '';
+        }
 
         $json_response = json_decode($raw_response, true);
         $translated_text = $json_response['translations'][0]['text'];
 
         $translated_text = $this->remove_ignore_tags($translated_text);
+
+        msg($this->getLang('msg_translation_success'), 1);
 
         return $translated_text;
     }
@@ -194,6 +212,7 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
         $text = str_replace('{{', '<ignore>{{', $text);
         $text = str_replace(']]', ']]</ignore>', $text);
         $text = str_replace('}}', '}}</ignore>', $text);
+        $text = str_replace("''", "<ignore>''</ignore>", $text);
 
         $ignored_expressions = explode(':', $this->getConf('ignored_expressions'));
 
@@ -209,6 +228,11 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
         $text = str_replace('<ignore>{{', '{{', $text);
         $text = str_replace(']]</ignore>', ']]', $text);
         $text = str_replace('}}</ignore>', '}}', $text);
+        $text = str_replace("<ignore>''</ignore>", "''", $text);
+
+        // restore < and > for example from arrows (-->) in wikitext
+        $text = str_replace('&gt;', '>', $text);
+        $text = str_replace('&lt;', '<', $text);
 
         $ignored_expressions = explode(':', $this->getConf('ignored_expressions'));
 
