@@ -266,7 +266,7 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
             'auth_key' => $this->getConf('api_key'),
             'target_lang' => $target_lang,
             'tag_handling' => 'xml',
-            'ignore_tags' => 'ignore,code,file,php',
+            'ignore_tags' => 'ignore,php',
             'text' => $text
         ];
 
@@ -320,6 +320,9 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
         $text = str_replace('}}', '}}</ignore>', $text);
         $text = str_replace("''", "<ignore>''</ignore>", $text);
 
+        $text = preg_replace('/(<file[\s\S]*?>[\s\S]*?<\/file>)/', '<ignore>${1}</ignore>', $text);
+        $text = preg_replace('/(<code[\s\S]*?>[\s\S]*?<\/code>)/', '<ignore>${1}</ignore>', $text);
+
         $ignored_expressions = explode(':', $this->getConf('ignored_expressions'));
 
         foreach ($ignored_expressions as $expression) {
@@ -335,6 +338,9 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
         $text = str_replace(']]</ignore>', ']]', $text);
         $text = str_replace('}}</ignore>', '}}', $text);
         $text = str_replace("<ignore>''</ignore>", "''", $text);
+
+        $text = preg_replace('/<ignore>(<file[\s\S]*?>[\s\S]*?<\/file>)<\/ignore>/', '${1}', $text);
+        $text = preg_replace('/<ignore>(<code[\s\S]*?>[\s\S]*?<\/code>)<\/ignore>/', '${1}', $text);
 
         // restore < and > for example from arrows (-->) in wikitext
         $text = str_replace('&gt;', '>', $text);
