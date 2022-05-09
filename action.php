@@ -53,6 +53,9 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
 
     public function add_menu_button(Doku_Event $event) {
         global $ID;
+        global $ACT;
+
+        if ($ACT != 'show') return;
 
         if ($event->data['view'] != 'page') return;
 
