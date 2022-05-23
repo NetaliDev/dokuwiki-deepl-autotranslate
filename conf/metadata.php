@@ -9,4 +9,5 @@ $meta['blacklist_regex'] = array('regex');
 $meta['direct_regex'] = array('regex');
 $meta['editor_regex'] = array('regex');
 $meta['ignored_expressions'] = array('string');
+$meta['default_lang_in_ns'] = array('onoff');
 

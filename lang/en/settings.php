@@ -9,4 +9,5 @@ $lang['blacklist_regex'] = 'Blacklist-Regex: All page names and namespaces match
 $lang['direct_regex'] = 'Direct-Regex: All page names and namespaces matching this regex will be translated in the direct mode';
 $lang['editor_regex'] = 'Editor-Regex: All page names and namespaces matching this regex will be translated in the editor mode';
 $lang['ignored_expressions'] = 'Expressions that won\'t be translated, seperated by \':\'';
+$lang['default_lang_in_ns'] = 'The default language is in a namespace (should normally not be the case)';
 

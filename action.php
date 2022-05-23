@@ -54,6 +54,7 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
     public function add_menu_button(Doku_Event $event) {
         global $ID;
         global $ACT;
+        global $conf;
 
         if ($ACT != 'show') return;
 
@@ -65,10 +66,17 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
         $lang_ns = array_shift($split_id);
         // check if we are in a language namespace
         if (array_key_exists($lang_ns, $this->langs)) {
-            // in language namespace --> check if we should translate
-            if (!$this->check_do_translation(true)) return;
+            if($this->getConf('default_lang_in_ns') and $lang_ns === $conf['lang']) {
+                // if the default lang is in a namespace and we are in that namespace --> check for push translation
+                if (!$this->check_do_push_translate()) return;
+            } else {
+                // in language namespace --> check if we should translate
+                if (!$this->check_do_translation(true)) return;
+            }
         } else {
-            // not in language namespace --> check if we should show the push translate button
+            // do not show the button if we are not in a language namespace and the default language is in a namespace
+            if($this->getConf('default_lang_in_ns')) return;
+            // not in language namespace and default language is npt in a namespace --> check if we should show the push translate button
             if (!$this->check_do_push_translate()) return;
         }
 
@@ -77,6 +85,7 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
 
     public function preprocess(Doku_Event  $event, $param): void {
         global $ID;
+        global $conf;
 
         // check if action is show or translate
         if ($event->data != 'show' and $event->data != 'translate') return;
@@ -85,8 +94,13 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
         $lang_ns = array_shift($split_id);
         // check if we are in a language namespace
         if (array_key_exists($lang_ns, $this->langs)) {
-            // in language namespace --> autotrans_direct
-            $this->autotrans_direct($event);
+            if($this->getConf('default_lang_in_ns') and $lang_ns === $conf['lang']) {
+                // if the default lang is in a namespace and we are in that namespace --> push translate
+                $this->push_translate($event);
+            } else {
+                // in language namespace --> autotrans direct
+                $this->autotrans_direct($event);
+            }
         } else {
             // not in language namespace --> push translate
             $this->push_translate($event);
@@ -166,7 +180,16 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
                 continue;
             }
 
-            $lang_id = $lang . ':' . $ID;
+            if ($this->getConf('default_lang_in_ns')) {
+                // if default lang is in ns: replace language namespace in ID
+                $split_id = explode(':', $ID);
+                array_shift($split_id);
+                $lang_id = implode(':', $split_id);
+                $lang_id = $lang . ':' . $lang_id;
+            } else {
+                // if default lang is not in ns: add language namespace to ID
+                $lang_id = $lang . ':' . $ID;
+            }
 
             // check permissions
             $perm = auth_quickaclcheck($ID);
@@ -205,10 +228,16 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
 
     private function get_org_page_text(): string {
         global $ID;
+        global $conf;
 
         $split_id = explode(':', $ID);
         array_shift($split_id);
         $org_id = implode(':', $split_id);
+
+        // if default lang is in ns: add default ns in front of org id
+        if ($this->getConf('default_lang_in_ns')) {
+            $org_id = $conf['lang'] . ':' . $org_id;
+        }
 
         return rawWiki($org_id);
     }
@@ -216,6 +245,7 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
     private function check_do_translation($allow_existing = false): bool {
         global $INFO;
         global $ID;
+        global $conf;
 
         // only translate if the current page does not exist
         if ($INFO['exists'] and !$allow_existing) return false;
@@ -235,6 +265,12 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
         if (!array_key_exists($lang_ns, $this->langs)) return false;
 
         $org_id = implode(':', $split_id);
+
+        // if default lang is in ns: add default ns in front of org id
+        if ($this->getConf('default_lang_in_ns')) {
+            $org_id = $conf['lang'] . ':' . $org_id;
+        }
+
         // check if the original page exists
         if (!page_exists($org_id)) return false;
 
@@ -243,6 +279,18 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
 
     private function check_do_push_translate(): bool {
         global $ID;
+        global $INFO;
+        global $conf;
+
+        if (!$INFO['exists']) return false;
+
+        // if default language is in namespace: only allow push translation from that namespace
+        if($this->getConf('default_lang_in_ns')) {
+            $split_id = explode(':', $ID);
+            $lang_ns = array_shift($split_id);
+
+            if ($lang_ns !== $conf['lang']) return false;
+        }
 
         $push_langs = $this->get_push_langs();
         // push_langs empty --> push_translate disabled --> abort

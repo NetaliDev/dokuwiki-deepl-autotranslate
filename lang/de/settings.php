@@ -9,4 +9,5 @@ $lang['blacklist_regex'] = 'Blacklist-Regex: Alle Seitennamen und Namespaces, au
 $lang['direct_regex'] = 'Direct-Regex: Alle Seitennamen und Namespaces, auf die dieser Regex matched, werden im Direct-Modus übersetzt';
 $lang['editor_regex'] = 'Editor-Regex: Alle Seitennamen und Namespaces, auf die dieser Regex matched, werden im Editor-Modus übersetzt';
 $lang['ignored_expressions'] = 'Ausdrücke, welche nicht übersetzt werden sollen, separiert von \':\'';
+$lang['default_lang_in_ns'] = 'Die Standardsprache befindet sich in einem Namespace (sollte normalerweise nicht der Fall sein)';
 
