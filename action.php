@@ -450,6 +450,9 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
         // ignore every other xml-like tags (the tags themselves, not their content), otherwise deepl would break the formatting
         $text = preg_replace('/<[\s\S]+?>/', '<ignore>${0}</ignore>', $text);
 
+        // prevent deepl from breaking headings
+        $text = preg_replace('/={1,6}/', '<ignore>${0}</ignore>', $text);
+
         // fix for the template plugin
         $text = preg_replace('/\{\{template>[\s\S]*?}}/', '<ignore>${0}</ignore>', $text);
 
@@ -477,9 +480,6 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
     }
 
     private function remove_ignore_tags($text): string {
-        // ignore every other xml-like tags (the tags themselves, not their content), otherwise deepl would break the formatting
-        $text = preg_replace('/<ignore>(<[\s\S]+?>)<\/ignore>/', '${1}', $text);
-
         $ignored_expressions = explode(':', $this->getConf('ignored_expressions'));
 
         foreach ($ignored_expressions as $expression) {
@@ -498,6 +498,12 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
 
         // fix for the template plugin
         $text = preg_replace('/<ignore>(\{\{template>[\s\S]*?}})<\/ignore>/', '${1}', $text);
+
+        // prevent deepl from breaking headings
+        $text = preg_replace('/<ignore>(={1,6})<\/ignore>/','${1}', $text);
+
+        // ignore every other xml-like tags (the tags themselves, not their content), otherwise deepl would break the formatting
+        $text = preg_replace('/<ignore>(<[\s\S]+?>)<\/ignore>/', '${1}', $text);
 
         // restore < and > for example from arrows (-->) in wikitext
         $text = str_replace('&gt;', '>', $text);
