@@ -400,6 +400,13 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
                 continue;
             }
 
+            // if the link already points to a target in a language namespace drop it and add the new language namespace
+            $split_id = explode(':', $resolved_id);
+            $lang_ns = array_shift($split_id);
+            if (array_key_exists($lang_ns, $this->langs)) {
+                $resolved_id = implode(':', $split_id);
+            }
+
             $lang_id = $target_lang . ':' . $resolved_id;
 
             if (!page_exists($lang_id)) {
@@ -433,6 +440,13 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
             if (!$exists) {
                 // redlink --> skip
                 continue;
+            }
+
+            // if the link already points to a target in a language namespace drop it and add the new language namespace
+            $split_id = explode(':', $resolved_id);
+            $lang_ns = array_shift($split_id);
+            if (array_key_exists($lang_ns, $this->langs)) {
+                $resolved_id = implode(':', $split_id);
             }
 
             $lang_id = $target_lang . ':' . $resolved_id;
