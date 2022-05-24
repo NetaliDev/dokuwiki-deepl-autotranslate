@@ -54,7 +54,6 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
     public function add_menu_button(Doku_Event $event): void {
         global $ID;
         global $ACT;
-        global $conf;
 
         if ($ACT != 'show') return;
 
@@ -66,7 +65,7 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
         $lang_ns = array_shift($split_id);
         // check if we are in a language namespace
         if (array_key_exists($lang_ns, $this->langs)) {
-            if($this->getConf('default_lang_in_ns') and $lang_ns === $conf['lang']) {
+            if($this->getConf('default_lang_in_ns') and $lang_ns === $this->get_default_lang()) {
                 // if the default lang is in a namespace and we are in that namespace --> check for push translation
                 if (!$this->check_do_push_translate()) return;
             } else {
@@ -85,7 +84,6 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
 
     public function preprocess(Doku_Event  $event, $param): void {
         global $ID;
-        global $conf;
 
         // check if action is show or translate
         if ($event->data != 'show' and $event->data != 'translate') return;
@@ -94,7 +92,7 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
         $lang_ns = array_shift($split_id);
         // check if we are in a language namespace
         if (array_key_exists($lang_ns, $this->langs)) {
-            if($this->getConf('default_lang_in_ns') and $lang_ns === $conf['lang']) {
+            if($this->getConf('default_lang_in_ns') and $lang_ns === $this->get_default_lang()) {
                 // if the default lang is in a namespace and we are in that namespace --> push translate
                 $this->push_translate($event);
             } else {
@@ -224,9 +222,20 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
         return array_shift($split_id);
     }
 
+    private function get_default_lang(): string {
+        global $conf;
+
+        if (empty($conf['lang_before_translation'])) {
+            $default_lang = $conf['lang'];
+        } else {
+            $default_lang = $conf['lang_before_translation'];
+        }
+
+        return $default_lang;
+    }
+
     private function get_org_page_info(): array {
         global $ID;
-        global $conf;
 
         $split_id = explode(':', $ID);
         array_shift($split_id);
@@ -234,7 +243,7 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
 
         // if default lang is in ns: add default ns in front of org id
         if ($this->getConf('default_lang_in_ns')) {
-            $org_id = $conf['lang'] . ':' . $org_id;
+            $org_id = $this->get_default_lang() . ':' . $org_id;
         }
 
         return array("ns" => getNS($org_id), "text" => rawWiki($org_id));
@@ -243,7 +252,6 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
     private function check_do_translation($allow_existing = false): bool {
         global $INFO;
         global $ID;
-        global $conf;
 
         // only translate if the current page does not exist
         if ($INFO['exists'] and !$allow_existing) return false;
@@ -266,7 +274,7 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
 
         // if default lang is in ns: add default ns in front of org id
         if ($this->getConf('default_lang_in_ns')) {
-            $org_id = $conf['lang'] . ':' . $org_id;
+            $org_id = $this->get_default_lang() . ':' . $org_id;
         }
 
         // check if the original page exists
@@ -278,7 +286,6 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
     private function check_do_push_translate(): bool {
         global $ID;
         global $INFO;
-        global $conf;
 
         if (!$INFO['exists']) return false;
 
@@ -287,7 +294,7 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
             $split_id = explode(':', $ID);
             $lang_ns = array_shift($split_id);
 
-            if ($lang_ns !== $conf['lang']) return false;
+            if ($lang_ns !== $this->get_default_lang()) return false;
         }
 
         $push_langs = $this->get_push_langs();
