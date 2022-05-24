@@ -483,6 +483,9 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
 
         // prevent deepl from doing strange things with dokuwiki syntax
         $text = str_replace("''", "<ignore>''</ignore>", $text);
+        $text = str_replace("//", "<ignore>//</ignore>", $text);
+        $text = str_replace("**", "<ignore>**</ignore>", $text);
+        $text = str_replace("__", "<ignore>__</ignore>", $text);
         $text = str_replace("\\\\", "<ignore>\\\\</ignore>", $text);
 
         // ignore code tags
@@ -511,6 +514,9 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
         $text = preg_replace('/<ignore>\{\{([\s\S]*?)(\|)?(<\/ignore>)([\s\S]*?)?<ignore>}}<\/ignore>/', '{{${1}${2}${4}}}', $text);
 
         $text = str_replace("<ignore>''</ignore>", "''", $text);
+        $text = str_replace("<ignore>//</ignore>", "//", $text);
+        $text = str_replace("<ignore>**</ignore>", "**", $text);
+        $text = str_replace("<ignore>__</ignore>", "__", $text);
         $text = str_replace("<ignore>\\\\</ignore>", "\\\\", $text);
 
         $text = preg_replace('/<ignore>(<php[\s\S]*?>[\s\S]*?<\/php>)<\/ignore>/', '${1}', $text);
