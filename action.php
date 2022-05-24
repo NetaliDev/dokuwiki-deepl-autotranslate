@@ -488,6 +488,12 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
         $text = str_replace("__", "<ignore>__</ignore>", $text);
         $text = str_replace("\\\\", "<ignore>\\\\</ignore>", $text);
 
+        // prevent deepl from messing with smileys
+        $smileys = array_keys(getSmileys());
+        foreach ($smileys as $smiley) {
+            $text = str_replace($smiley, "<ignore>" . $smiley . "</ignore>", $text);
+        }
+
         // ignore code tags
         $text = preg_replace('/(<php[\s\S]*?>[\s\S]*?<\/php>)/', '<ignore>${1}</ignore>', $text);
         $text = preg_replace('/(<file[\s\S]*?>[\s\S]*?<\/file>)/', '<ignore>${1}</ignore>', $text);
@@ -518,6 +524,12 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
         $text = str_replace("<ignore>**</ignore>", "**", $text);
         $text = str_replace("<ignore>__</ignore>", "__", $text);
         $text = str_replace("<ignore>\\\\</ignore>", "\\\\", $text);
+
+        // prevent deepl from messing with smileys
+        $smileys = array_keys(getSmileys());
+        foreach ($smileys as $smiley) {
+            $text = str_replace("<ignore>" . $smiley . "</ignore>", $smiley, $text);
+        }
 
         $text = preg_replace('/<ignore>(<php[\s\S]*?>[\s\S]*?<\/php>)<\/ignore>/', '${1}', $text);
         $text = preg_replace('/<ignore>(<file[\s\S]*?>[\s\S]*?<\/file>)<\/ignore>/', '${1}', $text);
