@@ -123,7 +123,6 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
         $event->data = 'show';
 
         if (!$this->check_do_translation($allow_existing)) {
-            send_redirect(wl($ID));
             return;
         }
 
@@ -131,7 +130,6 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
         $translated_text = $this->deepl_translate($org_page_info["text"], $this->get_target_lang(), $org_page_info["ns"]);
 
         if ($translated_text === '') {
-            send_redirect(wl($ID));
             return;
         }
 
