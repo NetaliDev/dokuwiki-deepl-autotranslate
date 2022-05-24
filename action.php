@@ -382,7 +382,7 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
          * LINKS
          */
 
-        preg_match_all('/\[\[([\s\S]*?)(\|([\s\S]*?))?]]/', $text, $matches, PREG_SET_ORDER);
+        preg_match_all('/\[\[([\s\S]*?)(#[\s\S]*?)?((\|)([\s\S]*?))?]]/', $text, $matches, PREG_SET_ORDER);
 
         foreach ($matches as $match) {
 
@@ -414,7 +414,7 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
                 continue;
             }
 
-            $new_link = '[[' . $lang_id . $match[2] . ']]';
+            $new_link = '[[' . $lang_id . $match[2] . $match[3] . ']]';
 
             $text = str_replace($match[0], $new_link, $text);
 
@@ -478,7 +478,7 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
         $text = preg_replace('/\{\{template>[\s\S]*?}}/', '<ignore>${0}</ignore>', $text);
 
         // ignore link/media ids but translate the text (if existing)
-        $text = preg_replace('/\[\[([\s\S]*?)((\|)([\s\S]*?))?]]/', '<ignore>[[${1}${3}</ignore>${4}<ignore>]]</ignore>', $text);
+        $text = preg_replace('/\[\[([\s\S]*?)(#[\s\S]*?)?((\|)([\s\S]*?))?]]/', '<ignore>[[${1}${2}${4}</ignore>${5}<ignore>]]</ignore>', $text);
         $text = preg_replace('/\{\{([\s\S]*?)(\?[\s\S]*?)?((\|)([\s\S]*?))?}}/', '<ignore>{{${1}${2}${4}</ignore>${5}<ignore>}}</ignore>', $text);
 
         // prevent deepl from doing strange things with dokuwiki syntax
@@ -516,14 +516,14 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
             $text = str_replace('<ignore>' . $expression . '</ignore>', $expression, $text);
         }
 
-        $text = preg_replace('/<ignore>\[\[([\s\S]*?)(\|)?(<\/ignore>)([\s\S]*?)?<ignore>]]<\/ignore>/', '[[${1}${2}${4}]]', $text);
-        $text = preg_replace('/<ignore>\{\{([\s\S]*?)(\|)?(<\/ignore>)([\s\S]*?)?<ignore>}}<\/ignore>/', '{{${1}${2}${4}}}', $text);
-
         $text = str_replace("<ignore>''</ignore>", "''", $text);
         $text = str_replace("<ignore>//</ignore>", "//", $text);
         $text = str_replace("<ignore>**</ignore>", "**", $text);
         $text = str_replace("<ignore>__</ignore>", "__", $text);
         $text = str_replace("<ignore>\\\\</ignore>", "\\\\", $text);
+
+        $text = preg_replace('/<ignore>\[\[([\s\S]*?)(\|)?(<\/ignore>)([\s\S]*?)?<ignore>]]<\/ignore>/', '[[${1}${2}${4}]]', $text);
+        $text = preg_replace('/<ignore>\{\{([\s\S]*?)(\|)?(<\/ignore>)([\s\S]*?)?<ignore>}}<\/ignore>/', '{{${1}${2}${4}}}', $text);
 
         // prevent deepl from messing with smileys
         $smileys = array_keys(getSmileys());
