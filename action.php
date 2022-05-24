@@ -51,7 +51,7 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
         $controller->register_hook('MENU_ITEMS_ASSEMBLY', 'AFTER', $this, 'add_menu_button');
     }
 
-    public function add_menu_button(Doku_Event $event) {
+    public function add_menu_button(Doku_Event $event): void {
         global $ID;
         global $ACT;
         global $conf;
@@ -127,8 +127,8 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
             return;
         }
 
-        $org_page_text = $this->get_org_page_text();
-        $translated_text = $this->deepl_translate($org_page_text, $this->langs[$this->get_target_lang()]);
+        $org_page_info = $this->get_org_page_info();
+        $translated_text = $this->deepl_translate($org_page_info["text"], $this->get_target_lang(), $org_page_info["ns"]);
 
         if ($translated_text === '') {
             send_redirect(wl($ID));
@@ -148,9 +148,9 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
 
         if (!$this->check_do_translation()) return;
 
-        $org_page_text = $this->get_org_page_text();
+        $org_page_info = $this->get_org_page_info();
 
-        $event->data['tpl'] = $this->deepl_translate($org_page_text, $this->langs[$this->get_target_lang()]);
+        $event->data['tpl'] = $this->deepl_translate($org_page_info["text"], $this->get_target_lang(), $org_page_info["ns"]);
     }
 
     private function push_translate(Doku_Event $event): void {
@@ -199,7 +199,7 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
                 continue;
             }
 
-            $translated_text = $this->deepl_translate($org_page_text, $this->langs[$lang]);
+            $translated_text = $this->deepl_translate($org_page_text, $lang, getNS($ID));
             saveWikiText($lang_id, $translated_text, 'Automatic push translation');
         }
 
@@ -226,7 +226,7 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
         return array_shift($split_id);
     }
 
-    private function get_org_page_text(): string {
+    private function get_org_page_info(): array {
         global $ID;
         global $conf;
 
@@ -239,7 +239,7 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
             $org_id = $conf['lang'] . ':' . $org_id;
         }
 
-        return rawWiki($org_id);
+        return array("ns" => getNS($org_id), "text" => rawWiki($org_id));
     }
 
     private function check_do_translation($allow_existing = false): bool {
@@ -305,16 +305,18 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
         return true;
     }
 
-    private function deepl_translate($text, $target_lang): string {
+    private function deepl_translate($text, $target_lang, $org_ns): string {
         if (!trim($this->getConf('api_key'))) return '';
+
+        $text = $this->patch_links($text, $target_lang, $org_ns);
 
         $text = $this->insert_ignore_tags($text);
 
         $data = [
             'auth_key' => $this->getConf('api_key'),
-            'target_lang' => $target_lang,
+            'target_lang' => $this->langs[$target_lang],
             'tag_handling' => 'xml',
-            'ignore_tags' => 'ignore,php',
+            'ignore_tags' => 'ignore',
             'text' => $text
         ];
 
@@ -361,16 +363,112 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
         return explode(' ', $push_langs);
     }
 
-    private function insert_ignore_tags($text): string {
-        $text = str_replace('[[', '<ignore>[[', $text);
-        $text = str_replace('{{', '<ignore>{{', $text);
-        $text = str_replace(']]', ']]</ignore>', $text);
-        $text = str_replace('}}', '}}</ignore>', $text);
-        $text = str_replace("''", "<ignore>''</ignore>", $text);
+    private function patch_links($text, $target_lang, $ns): string {
+        /*
+         * 1. Find links in [[ aa:bb ]] or [[ aa:bb | cc ]]
+         * 2. Extract aa:bb
+         * 3. Check if lang:aa:bb exists
+         * 3.1. --> Yes --> replace
+         * 3.2. --> No --> leave it as it is
+         */
 
+
+        /*
+         * LINKS
+         */
+
+        preg_match_all('/\[\[([\s\S]*?)(\|([\s\S]*?))?]]/', $text, $matches, PREG_SET_ORDER);
+
+        foreach ($matches as $match) {
+
+            if (strpos($match[1], '://') !== false) {
+                // external link --> skip
+                continue;
+            }
+
+            $resolved_id = $match[1];
+
+            resolve_pageid($ns, $resolved_id, $exists);
+
+            if (!$exists) {
+                // redlink --> skip
+                continue;
+            }
+
+            $lang_id = $target_lang . ':' . $resolved_id;
+
+            if (!page_exists($lang_id)) {
+                // Page in target lang does not exist --> skip
+                continue;
+            }
+
+            $new_link = '[[' . $lang_id . $match[2] . ']]';
+
+            $text = str_replace($match[0], $new_link, $text);
+
+        }
+
+        /*
+         * MEDIA
+         */
+
+        preg_match_all('/\{\{([\s\S]*?)(\?[\s\S]*?)?(\|([\s\S]*?))?}}/', $text, $matches, PREG_SET_ORDER);
+
+        foreach ($matches as $match) {
+
+            if (strpos($match[1], '://') !== false) {
+                // external image --> skip
+                continue;
+            }
+
+            $resolved_id = $match[1];
+
+            resolve_mediaid($ns, $resolved_id, $exists);
+
+            if (!$exists) {
+                // redlink --> skip
+                continue;
+            }
+
+            $lang_id = $target_lang . ':' . $resolved_id;
+
+            $lang_id_fn = mediaFN($lang_id);
+
+            if (!file_exists($lang_id_fn)) {
+                // media in target lang does not exist --> skip
+                continue;
+            }
+
+            $new_link = '{{' . $lang_id . $match[2] . $match[3] . '}}';
+
+            $text = str_replace($match[0], $new_link, $text);
+
+        }
+
+        return $text;
+    }
+
+    private function insert_ignore_tags($text): string {
+        // ignore every other xml-like tags (the tags themselves, not their content), otherwise deepl would break the formatting
+        $text = preg_replace('/<[\s\S]+?>/', '<ignore>${0}</ignore>', $text);
+
+        // fix for the template plugin
+        $text = preg_replace('/\{\{template>[\s\S]*?}}/', '<ignore>${0}</ignore>', $text);
+
+        // ignore link/media ids but translate the text (if existing)
+        $text = preg_replace('/\[\[([\s\S]*?)((\|)([\s\S]*?))?]]/', '<ignore>[[${1}${3}</ignore>${4}<ignore>]]</ignore>', $text);
+        $text = preg_replace('/\{\{([\s\S]*?)(\?[\s\S]*?)?((\|)([\s\S]*?))?}}/', '<ignore>{{${1}${2}${4}</ignore>${5}<ignore>}}</ignore>', $text);
+
+        // prevent deepl from doing strange things with dokuwiki syntax
+        $text = str_replace("''", "<ignore>''</ignore>", $text);
+        $text = str_replace("\\\\", "<ignore>\\\\</ignore>", $text);
+
+        // ignore code tags
+        $text = preg_replace('/(<php[\s\S]*?>[\s\S]*?<\/php>)/', '<ignore>${1}</ignore>', $text);
         $text = preg_replace('/(<file[\s\S]*?>[\s\S]*?<\/file>)/', '<ignore>${1}</ignore>', $text);
         $text = preg_replace('/(<code[\s\S]*?>[\s\S]*?<\/code>)/', '<ignore>${1}</ignore>', $text);
 
+        // ignore the expressions from the ignore list
         $ignored_expressions = explode(':', $this->getConf('ignored_expressions'));
 
         foreach ($ignored_expressions as $expression) {
@@ -381,24 +479,31 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
     }
 
     private function remove_ignore_tags($text): string {
-        $text = str_replace('<ignore>[[', '[[', $text);
-        $text = str_replace('<ignore>{{', '{{', $text);
-        $text = str_replace(']]</ignore>', ']]', $text);
-        $text = str_replace('}}</ignore>', '}}', $text);
-        $text = str_replace("<ignore>''</ignore>", "''", $text);
-
-        $text = preg_replace('/<ignore>(<file[\s\S]*?>[\s\S]*?<\/file>)<\/ignore>/', '${1}', $text);
-        $text = preg_replace('/<ignore>(<code[\s\S]*?>[\s\S]*?<\/code>)<\/ignore>/', '${1}', $text);
-
-        // restore < and > for example from arrows (-->) in wikitext
-        $text = str_replace('&gt;', '>', $text);
-        $text = str_replace('&lt;', '<', $text);
+        // ignore every other xml-like tags (the tags themselves, not their content), otherwise deepl would break the formatting
+        $text = preg_replace('/<ignore>(<[\s\S]+?>)<\/ignore>/', '${1}', $text);
 
         $ignored_expressions = explode(':', $this->getConf('ignored_expressions'));
 
         foreach ($ignored_expressions as $expression) {
             $text = str_replace('<ignore>' . $expression . '</ignore>', $expression, $text);
         }
+
+        $text = preg_replace('/<ignore>\[\[([\s\S]*?)(\|)?(<\/ignore>)([\s\S]*?)?<ignore>]]<\/ignore>/', '[[${1}${2}${4}]]', $text);
+        $text = preg_replace('/<ignore>\{\{([\s\S]*?)(\|)?(<\/ignore>)([\s\S]*?)?<ignore>}}<\/ignore>/', '{{${1}${2}${4}}}', $text);
+
+        $text = str_replace("<ignore>''</ignore>", "''", $text);
+        $text = str_replace("<ignore>\\\\</ignore>", "\\\\", $text);
+
+        $text = preg_replace('/<ignore>(<php[\s\S]*?>[\s\S]*?<\/php>)<\/ignore>/', '${1}', $text);
+        $text = preg_replace('/<ignore>(<file[\s\S]*?>[\s\S]*?<\/file>)<\/ignore>/', '${1}', $text);
+        $text = preg_replace('/<ignore>(<code[\s\S]*?>[\s\S]*?<\/code>)<\/ignore>/', '${1}', $text);
+
+        // fix for the template plugin
+        $text = preg_replace('/<ignore>(\{\{template>[\s\S]*?}})<\/ignore>/', '${1}', $text);
+
+        // restore < and > for example from arrows (-->) in wikitext
+        $text = str_replace('&gt;', '>', $text);
+        $text = str_replace('&lt;', '<', $text);
 
         return $text;
     }
