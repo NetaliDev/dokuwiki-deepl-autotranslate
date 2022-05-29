@@ -477,9 +477,16 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
         // fix for the template plugin
         $text = preg_replace('/\{\{template>[\s\S]*?}}/', '<ignore>${0}</ignore>', $text);
 
+        // ignore links in wikitext (outside of dokuwiki-links)
+        $text = preg_replace('/\S+:\/\/\S+/', '<ignore>${0}</ignore>', $text);
+
         // ignore link/media ids but translate the text (if existing)
         $text = preg_replace('/\[\[([\s\S]*?)(#[\s\S]*?)?((\|)([\s\S]*?))?]]/', '<ignore>[[${1}${2}${4}</ignore>${5}<ignore>]]</ignore>', $text);
         $text = preg_replace('/\{\{([\s\S]*?)(\?[\s\S]*?)?((\|)([\s\S]*?))?}}/', '<ignore>{{${1}${2}${4}</ignore>${5}<ignore>}}</ignore>', $text);
+
+        // prevent deepl from messing with tables
+        $text = str_replace("^", "<ignore>^</ignore>", $text);
+        $text = str_replace("|", "<ignore>|</ignore>", $text);
 
         // prevent deepl from doing strange things with dokuwiki syntax
         $text = str_replace("''", "<ignore>''</ignore>", $text);
@@ -516,11 +523,18 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
             $text = str_replace('<ignore>' . $expression . '</ignore>', $expression, $text);
         }
 
+        // prevent deepl from messing with tables
+        $text = str_replace("<ignore>^</ignore>", "^", $text);
+        $text = str_replace("<ignore>|</ignore>", "|", $text);
+
         $text = str_replace("<ignore>''</ignore>", "''", $text);
         $text = str_replace("<ignore>//</ignore>", "//", $text);
         $text = str_replace("<ignore>**</ignore>", "**", $text);
         $text = str_replace("<ignore>__</ignore>", "__", $text);
         $text = str_replace("<ignore>\\\\</ignore>", "\\\\", $text);
+
+        // ignore links in wikitext (outside of dokuwiki-links)
+        $text = preg_replace('/<ignore>(\S+:\/\/\S+)<\/ignore>/', '${1}', $text);
 
         $text = preg_replace('/<ignore>\[\[([\s\S]*?)(\|)?(<\/ignore>)([\s\S]*?)?<ignore>]]<\/ignore>/', '[[${1}${2}${4}]]', $text);
         $text = preg_replace('/<ignore>\{\{([\s\S]*?)(\|)?(<\/ignore>)([\s\S]*?)?<ignore>}}<\/ignore>/', '{{${1}${2}${4}}}', $text);
@@ -547,6 +561,9 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
         // restore < and > for example from arrows (-->) in wikitext
         $text = str_replace('&gt;', '>', $text);
         $text = str_replace('&lt;', '<', $text);
+
+        // restore & in wikitext
+        $text = str_replace('&amp;', '&', $text);
 
         return $text;
     }
