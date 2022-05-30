@@ -395,10 +395,7 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
 
             resolve_pageid($ns, $resolved_id, $exists);
 
-            if (!$exists) {
-                // redlink --> skip
-                continue;
-            }
+            $resolved_id_full = $resolved_id;
 
             // if the link already points to a target in a language namespace drop it and add the new language namespace
             $split_id = explode(':', $resolved_id);
@@ -410,11 +407,12 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
             $lang_id = $target_lang . ':' . $resolved_id;
 
             if (!page_exists($lang_id)) {
-                // Page in target lang does not exist --> skip
-                continue;
+                // Page in target lang does not exist --> replace with absolute ID in case it was a relative ID
+                $new_link = '[[' . $resolved_id_full . $match[2] . $match[3] . ']]';
+            } else {
+                // Page in target lang exists --> replace link
+                $new_link = '[[' . $lang_id . $match[2] . $match[3] . ']]';
             }
-
-            $new_link = '[[' . $lang_id . $match[2] . $match[3] . ']]';
 
             $text = str_replace($match[0], $new_link, $text);
 
@@ -437,10 +435,7 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
 
             resolve_mediaid($ns, $resolved_id, $exists);
 
-            if (!$exists) {
-                // redlink --> skip
-                continue;
-            }
+            $resolved_id_full = $resolved_id;
 
             // if the link already points to a target in a language namespace drop it and add the new language namespace
             $split_id = explode(':', $resolved_id);
@@ -454,11 +449,12 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
             $lang_id_fn = mediaFN($lang_id);
 
             if (!file_exists($lang_id_fn)) {
-                // media in target lang does not exist --> skip
-                continue;
+                // media in target lang does not exist --> replace with absolute ID in case it was a relative ID
+                $new_link = '{{' . $resolved_id_full . $match[2] . $match[3] . '}}';
+            } else {
+                // media in target lang exists --> replace it
+                $new_link = '{{' . $lang_id . $match[2] . $match[3] . '}}';
             }
-
-            $new_link = '{{' . $lang_id . $match[2] . $match[3] . '}}';
 
             $text = str_replace($match[0], $new_link, $text);
 
