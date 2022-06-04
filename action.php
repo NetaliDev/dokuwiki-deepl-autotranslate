@@ -188,7 +188,7 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
             }
 
             // check permissions
-            $perm = auth_quickaclcheck($ID);
+            $perm = auth_quickaclcheck($lang_id);
             $exists = page_exists($lang_id);
             if (($exists and $perm < AUTH_EDIT) or (!$exists and $perm < AUTH_CREATE)) {
                 msg($this->getLang('msg_translation_fail_no_permissions') . $lang_id, -1);
@@ -289,6 +289,10 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
 
         if (!$INFO['exists']) return false;
 
+        // only allow push translation if the user can edit this page
+        $perm = auth_quickaclcheck($ID);
+        if ($perm < AUTH_EDIT) return false;
+
         // if default language is in namespace: only allow push translation from that namespace
         if($this->getConf('default_lang_in_ns')) {
             $split_id = explode(':', $ID);
@@ -386,10 +390,8 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
 
         foreach ($matches as $match) {
 
-            if (strpos($match[1], '://') !== false) {
-                // external link --> skip
-                continue;
-            }
+            // external link --> skip
+            if (strpos($match[1], '://') !== false) continue;
 
             $resolved_id = $match[1];
 
@@ -426,10 +428,11 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
 
         foreach ($matches as $match) {
 
-            if (strpos($match[1], '://') !== false) {
-                // external image --> skip
-                continue;
-            }
+            // external image --> skip
+            if (strpos($match[1], '://') !== false) continue;
+
+            // skip things like {{tag>...}}
+            if (strpos($match[1], '>') !== false) continue;
 
             $resolved_id = $match[1];
 
@@ -470,8 +473,8 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
         // prevent deepl from breaking headings
         $text = preg_replace('/={1,6}/', '<ignore>${0}</ignore>', $text);
 
-        // fix for the template plugin
-        $text = preg_replace('/\{\{template>[\s\S]*?}}/', '<ignore>${0}</ignore>', $text);
+        // fix for plugins like tag or template
+        $text = preg_replace('/\{\{[\s\w]+?>[\s\S]*?}}/', '<ignore>${0}</ignore>', $text);
 
         // ignore links in wikitext (outside of dokuwiki-links)
         $text = preg_replace('/\S+:\/\/\S+/', '<ignore>${0}</ignore>', $text);
@@ -545,8 +548,8 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
         $text = preg_replace('/<ignore>(<file[\s\S]*?>[\s\S]*?<\/file>)<\/ignore>/', '${1}', $text);
         $text = preg_replace('/<ignore>(<code[\s\S]*?>[\s\S]*?<\/code>)<\/ignore>/', '${1}', $text);
 
-        // fix for the template plugin
-        $text = preg_replace('/<ignore>(\{\{template>[\s\S]*?}})<\/ignore>/', '${1}', $text);
+        // fix for plugins like tag or template
+        $text = preg_replace('/<ignore>(\{\{[\s\w]+?>[\s\S]*?}})<\/ignore>/', '${1}', $text);
 
         // prevent deepl from breaking headings
         $text = preg_replace('/<ignore>(={1,6})<\/ignore>/','${1}', $text);
