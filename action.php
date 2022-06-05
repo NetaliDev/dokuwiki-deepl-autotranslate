@@ -393,7 +393,13 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
             // external link --> skip
             if (strpos($match[1], '://') !== false) continue;
 
-            $resolved_id = $match[1];
+            // skip interwiki links
+            if (strpos($match[1], '>') !== false) continue;
+
+            // skip windows share links
+            if (strpos($match[1], '\\\\') !== false) continue;
+
+            $resolved_id = trim($match[1]);
 
             resolve_pageid($ns, $resolved_id, $exists);
 
@@ -424,7 +430,7 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
          * MEDIA
          */
 
-        preg_match_all('/\{\{([\s\S]*?)(\?[\s\S]*?)?(\|([\s\S]*?))?}}/', $text, $matches, PREG_SET_ORDER);
+        preg_match_all('/\{\{(([\s\S]*?)(\?[\s\S]*?)?)(\|([\s\S]*?))?}}/', $text, $matches, PREG_SET_ORDER);
 
         foreach ($matches as $match) {
 
@@ -434,7 +440,17 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
             // skip things like {{tag>...}}
             if (strpos($match[1], '>') !== false) continue;
 
-            $resolved_id = $match[1];
+            // keep alignment
+            $align_left = "";
+            $align_right = "";
+
+            // align left --> space in front of ID
+            if (substr($match[1], 0, 1) == " ") $align_left = " ";
+            // align right --> space behind id
+            if (substr($match[1], -1) == " ") $align_right = " ";
+
+            $resolved_id = trim($match[2]);
+            $params = trim($match[3]);
 
             resolve_mediaid($ns, $resolved_id, $exists);
 
@@ -453,10 +469,10 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
 
             if (!file_exists($lang_id_fn)) {
                 // media in target lang does not exist --> replace with absolute ID in case it was a relative ID
-                $new_link = '{{' . $resolved_id_full . $match[2] . $match[3] . '}}';
+                $new_link = '{{' . $align_left . $resolved_id_full . $params . $align_right . $match[4] . '}}';
             } else {
                 // media in target lang exists --> replace it
-                $new_link = '{{' . $lang_id . $match[2] . $match[3] . '}}';
+                $new_link = '{{' . $align_left . $lang_id . $params . $align_right . $match[4] . '}}';
             }
 
             $text = str_replace($match[0], $new_link, $text);
