@@ -13,7 +13,7 @@ use \dokuwiki\plugin\deeplautotranslate\MenuItem;
 class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
 
     // manual mapping of ISO-languages to DeepL-languages to fix inconsistent naming
-    private $langs = [
+    private $langs = array(
         'bg' => 'BG',
         'cs' => 'CS',
         'da' => 'DA',
@@ -40,14 +40,15 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
         'sl' => 'SL',
         'sv' => 'SV',
         'zh' => 'ZH'
-    ];
+    );
 
     /**
      * Register its handlers with the DokuWiki's event controller
      */
     public function register(Doku_Event_Handler $controller) {
         $controller->register_hook('ACTION_ACT_PREPROCESS','BEFORE', $this, 'preprocess');
-        $controller->register_hook('COMMON_PAGETPL_LOAD','AFTER', $this, 'autotrans_editor');
+        $controller->register_hook('COMMON_PAGETPL_LOAD','AFTER', $this, 'pagetpl_load');
+        $controller->register_hook('COMMON_WIKIPAGE_SAVE','AFTER', $this, 'update_glossary');
         $controller->register_hook('MENU_ITEMS_ASSEMBLY', 'AFTER', $this, 'add_menu_button');
     }
 
@@ -60,6 +61,9 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
         if ($event->data['view'] != 'page') return;
 
         if (!$this->getConf('show_button')) return;
+
+        // no translations for the glossary namespace
+        if ($this->check_in_glossary_ns()) return;
 
         $split_id = explode(':', $ID);
         $lang_ns = array_shift($split_id);
@@ -75,18 +79,23 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
         } else {
             // do not show the button if we are not in a language namespace and the default language is in a namespace
             if($this->getConf('default_lang_in_ns')) return;
-            // not in language namespace and default language is npt in a namespace --> check if we should show the push translate button
+            // not in language namespace and default language is not in a namespace --> check if we should show the push translate button
             if (!$this->check_do_push_translate()) return;
         }
 
         array_splice($event->data['items'], -1, 0, [new MenuItem()]);
     }
 
-    public function preprocess(Doku_Event  $event, $param): void {
+    public function preprocess(Doku_Event $event, $param): void {
         global $ID;
 
         // check if action is show or translate
         if ($event->data != 'show' and $event->data != 'translate') return;
+
+        // redirect to glossary ns start if glossary ns is called
+        if ($this->check_in_glossary_ns() and $event->data == 'show' and $ID == $this->get_glossary_ns()) {
+            send_redirect(wl($this->get_glossary_ns() . ':start'));
+        }
 
         $split_id = explode(':', $ID);
         $lang_ns = array_shift($split_id);
@@ -102,6 +111,77 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
         } else {
             // not in language namespace --> push translate
             $this->push_translate($event);
+        }
+    }
+
+    public function pagetpl_load(Doku_Event $event, $param): void {
+        // handle glossary namespace init when we are in it
+        if ($this->check_in_glossary_ns()) {
+            $this->handle_glossary_init($event);
+            return;
+        }
+
+        $this->autotrans_editor($event);
+    }
+
+    public function update_glossary(Doku_Event $event, $param): void {
+        global $ID;
+        // this also checks if the glossary feature is enabled
+        if (!$this->check_in_glossary_ns()) return;
+
+        $glossary_ns = $this->get_glossary_ns();
+
+        // check if we are in a glossary definition
+        if(preg_match('/^' . $glossary_ns . ':(\w{2})_(\w{2})$/', $ID, $id_match)) {
+            $old_glossary_id = $this->get_glossary_id($id_match[1], $id_match[2]);
+            if ($event->data['changeType'] == DOKU_CHANGE_TYPE_DELETE) {
+                // page deleted --> delete glossary
+                if ($old_glossary_id) {
+                    $result = $this->delete_glossary($old_glossary_id);
+                    if ($result) {
+                        msg($this->getLang('msg_glossary_delete_success'), 1);
+                        $this->unset_glossary_id($id_match[1], $id_match[2]);
+                    }
+                }
+                return;
+            }
+
+            $entries = '';
+
+            // grep entries from definition table
+            preg_match_all('/[ \t]*\|(.*?)\|(.*?)\|/', $event->data['newContent'], $matches, PREG_SET_ORDER);
+            foreach ($matches as $match) {
+                $src = trim($match[1]);
+                $target = trim($match[2]);
+                if ($src == '' or $target == '') {
+                    msg($this->getLang('msg_glossary_empty_key'), -1);
+                    return;
+                }
+                $entries .=  $src . "\t" . $target . "\n";
+            }
+
+            if (empty($matches)) {
+                // no matches --> delete glossary
+                if ($old_glossary_id) {
+                    $result = $this->delete_glossary($old_glossary_id);
+                    if ($result) {
+                        msg($this->getLang('msg_glossary_delete_success'), 1);
+                        $this->unset_glossary_id($id_match[1], $id_match[2]);
+                    }
+                }
+                return;
+            }
+
+            $new_glossary_id = $this->create_glossary($id_match[1], $id_match[2], $entries);
+
+            if ($new_glossary_id) {
+                msg($this->getLang('msg_glossary_create_success'), 1);
+                $this->set_glossary_id($id_match[1], $id_match[2], $new_glossary_id);
+            } else {
+                return;
+            }
+
+            if ($old_glossary_id) $this->delete_glossary($old_glossary_id);
         }
     }
 
@@ -139,7 +219,7 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
         send_redirect(wl($ID));
     }
 
-    public function autotrans_editor(Doku_Event $event, $param): void {
+    private function autotrans_editor(Doku_Event $event): void {
         if ($this->get_mode() != 'editor') return;
 
         if (!$this->check_do_translation()) return;
@@ -205,6 +285,48 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
         send_redirect(wl($ID));
     }
 
+    private function handle_glossary_init(Doku_Event $event): void {
+        global $ID;
+
+        $glossary_ns = $this->get_glossary_ns();
+
+        // create glossary landing page
+        if ($ID == $glossary_ns . ':start') {
+            $landing_page_text = '====== ' . $this->getLang('glossary_landing_heading') . ' ======' . "\n";
+            $landing_page_text .= $this->getLang('glossary_landing_info_msg') . "\n";
+
+            $src_lang = substr($this->get_default_lang(), 0, 2);
+
+            $available_glossaries = $this->get_available_glossaries();
+            foreach ($available_glossaries as $glossary) {
+                if ($glossary['source_lang'] != $src_lang) continue;
+                // generate links to the available glossary pages
+                $landing_page_text .= '  * [[.:' . $glossary['source_lang'] . '_' . $glossary['target_lang'] . '|' . strtoupper($glossary['source_lang']) . ' -> ' . strtoupper($glossary['target_lang']) . ']]' . "\n";
+            }
+            $event->data['tpl'] = $landing_page_text;
+            return;
+        }
+
+        if (preg_match('/^' . $glossary_ns . ':(\w{2})_(\w{2})$/', $ID, $match)) {
+            // check if glossaries are supported for this language pair
+            if (!$this->check_glossary_supported($match[1], $match[2])) {
+                msg($this->getLang('msg_glossary_unsupported'), -1);
+                return;
+            }
+
+            $page_text = '====== ' . $this->getLang('glossary_definition_heading') . ': ' . strtoupper($match[1]) . ' -> ' . strtoupper($match[2]) . ' ======' . "\n";
+            $page_text .= $this->getLang('glossary_definition_help') . "\n\n";
+            $page_text .= '^ ' . strtoupper($match[1]) . ' ^ ' . strtoupper($match[2]) . ' ^' . "\n";
+
+            $event->data['tpl'] = $page_text;
+            return;
+        }
+    }
+
+    private function get_glossary_ns(): string {
+        return trim(strtolower($this->getConf('glossary_ns')));
+    }
+
     private function get_mode(): string {
         global $ID;
         if ($this->getConf('editor_regex')) {
@@ -249,6 +371,116 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
         return array("ns" => getNS($org_id), "text" => rawWiki($org_id));
     }
 
+    private function get_available_glossaries(): array {
+        if (!trim($this->getConf('api_key'))) {
+            msg($this->getLang('msg_bad_key'), -1);
+            return array();
+        }
+
+        if ($this->getConf('api') == 'free') {
+            $url = 'https://api-free.deepl.com/v2/glossary-language-pairs';
+        } else {
+            $url = 'https://api.deepl.com/v2/glossary-language-pairs';
+        }
+
+        $http = new DokuHTTPClient();
+
+        $http->headers = array('Authorization' => 'DeepL-Auth-Key ' . $this->getConf('api_key'));
+
+        $raw_response = $http->get($url);
+
+        if ($http->status >= 400) {
+            // add error messages
+            switch ($http->status) {
+                case 403:
+                    msg($this->getLang('msg_bad_key'), -1);
+                    break;
+                default:
+                    msg($this->getLang('msg_glossary_fetch_fail'), -1);
+                    break;
+            }
+
+            // if any error occurred return an empty array
+            return array();
+        }
+
+        $json_response = json_decode($raw_response, true);
+
+        return $json_response['supported_languages'];
+    }
+
+    private function get_glossary_id($src, $target): string {
+        if (!file_exists(DOKU_CONF . 'deepl-glossaries.json')) return '';
+
+        $key = $src . "_" . $target;
+
+        $raw_json = file_get_contents(DOKU_CONF . 'deepl-glossaries.json');
+        $content = json_decode($raw_json, true);
+
+        if (array_key_exists($key, $content)) {
+            return $content[$key];
+        } else {
+            return '';
+        }
+    }
+
+    private function set_glossary_id($src, $target, $glossary_id): void {
+        if (file_exists(DOKU_CONF . 'deepl-glossaries.json')) {
+            $raw_json = file_get_contents(DOKU_CONF . 'deepl-glossaries.json');
+            $content = json_decode($raw_json, true);
+        } else {
+            $content = array();
+        }
+
+        $key = $src . "_" . $target;
+
+        $content[$key] = $glossary_id;
+
+        $raw_json = json_encode($content);
+        file_put_contents(DOKU_CONF . 'deepl-glossaries.json', $raw_json);
+    }
+
+    private function unset_glossary_id($src, $target): void {
+        if (file_exists(DOKU_CONF . 'deepl-glossaries.json')) {
+            $raw_json = file_get_contents(DOKU_CONF . 'deepl-glossaries.json');
+            $content = json_decode($raw_json, true);
+        } else {
+            return;
+        }
+
+        $key = $src . "_" . $target;
+
+        unset($content[$key]);
+
+        $raw_json = json_encode($content);
+        file_put_contents(DOKU_CONF . 'deepl-glossaries.json', $raw_json);
+    }
+
+    private function check_in_glossary_ns(): bool {
+        global $ID;
+
+        $glossary_ns = $this->get_glossary_ns();
+
+        // check if the glossary namespace is defined
+        if (!$glossary_ns) return false;
+
+        // check if we are in the glossary namespace
+        if (substr($ID, 0, strlen($glossary_ns)) == $glossary_ns) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    private function check_glossary_supported($src, $target): bool {
+        if(strlen($src) != 2 or strlen($target) != 2) return false;
+        $available_glossaries = $this->get_available_glossaries();
+        foreach ($available_glossaries as $glossary) {
+            if ($src == $glossary['source_lang'] and $target == $glossary['target_lang']) return true;
+        }
+        return false;
+    }
+
     private function check_do_translation($allow_existing = false): bool {
         global $INFO;
         global $ID;
@@ -277,6 +509,10 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
             $org_id = $this->get_default_lang() . ':' . $org_id;
         }
 
+        // no translations for the glossary namespace
+        $glossary_ns = $this->get_glossary_ns();
+        if ($glossary_ns and substr($org_id, 0, strlen($glossary_ns)) == $glossary_ns) return false;
+
         // check if the original page exists
         if (!page_exists($org_id)) return false;
 
@@ -301,6 +537,9 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
             if ($lang_ns !== $this->get_default_lang()) return false;
         }
 
+        // no translations for the glossary namespace
+        if ($this->check_in_glossary_ns()) return false;
+
         $push_langs = $this->get_push_langs();
         // push_langs empty --> push_translate disabled --> abort
         if (empty($push_langs)) return false;
@@ -314,20 +553,121 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
         return true;
     }
 
+    private function create_glossary($src, $target, $entries): string {
+        if (!trim($this->getConf('api_key'))) {
+            msg($this->getLang('msg_bad_key'), -1);
+            return '';
+        }
+
+        if ($this->getConf('api') == 'free') {
+            $url = 'https://api-free.deepl.com/v2/glossaries';
+        } else {
+            $url = 'https://api.deepl.com/v2/glossaries';
+        }
+
+        $data = array(
+            'name' => 'DokuWiki-Autotranslate-' . $src . '_' . $target,
+            'source_lang' => $src,
+            'target_lang' => $target,
+            'entries' => $entries,
+            'entries_format' => 'tsv'
+        );
+
+        $http = new DokuHTTPClient();
+
+        $http->headers = array('Authorization' => 'DeepL-Auth-Key ' . $this->getConf('api_key'));
+
+        $raw_response = $http->post($url, $data);
+
+        if ($http->status >= 400) {
+            // add error messages
+            switch ($http->status) {
+                case 403:
+                    msg($this->getLang('msg_bad_key'), -1);
+                    break;
+                case 400:
+                    msg($this->getLang('msg_glossary_content_invalid'), -1);
+                    break;
+                default:
+                    msg($this->getLang('msg_glossary_create_fail'), -1);
+                    break;
+            }
+
+            // if any error occurred return an empty string
+            return '';
+        }
+
+        $json_response = json_decode($raw_response, true);
+
+        return $json_response['glossary_id'];
+    }
+
+    private function delete_glossary($glossary_id): bool {
+        if (!trim($this->getConf('api_key'))) {
+            msg($this->getLang('msg_bad_key'), -1);
+            return false;
+        }
+
+        if ($this->getConf('api') == 'free') {
+            $url = 'https://api-free.deepl.com/v2/glossaries';
+        } else {
+            $url = 'https://api.deepl.com/v2/glossaries';
+        }
+
+        $url .= '/' . $glossary_id;
+
+        $http = new DokuHTTPClient();
+
+        $http->headers = array('Authorization' => 'DeepL-Auth-Key ' . $this->getConf('api_key'));
+
+        $http->sendRequest($url, '', 'DELETE');
+
+        if ($http->status >= 400) {
+            // add error messages
+            switch ($http->status) {
+                case 403:
+                    msg($this->getLang('msg_bad_key'), -1);
+                    break;
+                default:
+                    msg($this->getLang('msg_glossary_delete_fail'), -1);
+                    break;
+            }
+
+            // if any error occurred return false
+            return false;
+        }
+
+        return true;
+    }
+
     private function deepl_translate($text, $target_lang, $org_ns): string {
-        if (!trim($this->getConf('api_key'))) return '';
+        if (!trim($this->getConf('api_key'))) {
+            msg($this->getLang('msg_translation_fail_bad_key'), -1);
+            return '';
+        }
 
         $text = $this->patch_links($text, $target_lang, $org_ns);
 
         $text = $this->insert_ignore_tags($text);
 
-        $data = [
-            'auth_key' => $this->getConf('api_key'),
+        $data = array(
+            'source_lang' => strtoupper(substr($this->get_default_lang(), 0, 2)), // cut of things like "-informal"
             'target_lang' => $this->langs[$target_lang],
             'tag_handling' => 'xml',
             'ignore_tags' => 'ignore',
             'text' => $text
-        ];
+        );
+
+        // check if glossaries are enabled
+        if ($this->get_glossary_ns()) {
+            $src = substr($this->get_default_lang(), 0, 2);
+            $target = substr($target_lang, 0, 2);
+            $glossary_id = $this->get_glossary_id($src, $target);
+            if ($glossary_id) {
+                // use glossary if it is defined
+                $data['glossary_id'] = $glossary_id;
+            }
+        }
 
         if ($this->getConf('api') == 'free') {
             $url = 'https://api-free.deepl.com/v2/translate';
@@ -336,6 +676,9 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
         }
 
         $http = new DokuHTTPClient();
+
+        $http->headers = array('Authorization' => 'DeepL-Auth-Key ' . $this->getConf('api_key'));
+
         $raw_response = $http->post($url, $data);
 
         if ($http->status >= 400) {
@@ -343,6 +686,9 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
             switch ($http->status) {
                 case 403:
                     msg($this->getLang('msg_translation_fail_bad_key'), -1);
+                    break;
+                case 404:
+                    msg($this->getLang('msg_translation_fail_invalid_glossary'), -1);
                     break;
                 case 456:
                     msg($this->getLang('msg_translation_fail_quota_exceeded'), -1);
