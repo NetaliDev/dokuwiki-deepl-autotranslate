@@ -850,11 +850,12 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
         $text = str_replace("|", "<ignore>|</ignore>", $text);
 
         // prevent deepl from doing strange things with dokuwiki syntax
-        $text = str_replace("''", "<ignore>''</ignore>", $text);
-        $text = str_replace("//", "<ignore>//</ignore>", $text);
-        $text = str_replace("**", "<ignore>**</ignore>", $text);
-        $text = str_replace("__", "<ignore>__</ignore>", $text);
-        $text = str_replace("\\\\", "<ignore>\\\\</ignore>", $text);
+        // if a full line is formatted, we have to double-ignore for some reason
+        $text = str_replace("''", "<ignore><ignore>''</ignore></ignore>", $text);
+        $text = str_replace("//", "<ignore><ignore>//</ignore></ignore>", $text);
+        $text = str_replace("**", "<ignore><ignore>**</ignore></ignore>", $text);
+        $text = str_replace("__", "<ignore><ignore>__</ignore></ignore>", $text);
+        $text = str_replace("\\\\", "<ignore><ignore>\\\\</ignore></ignore>", $text);
 
         // prevent deepl from messing with smileys
         $smileys = array_keys(getSmileys());
@@ -888,11 +889,11 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
         $text = str_replace("<ignore>^</ignore>", "^", $text);
         $text = str_replace("<ignore>|</ignore>", "|", $text);
 
-        $text = str_replace("<ignore>''</ignore>", "''", $text);
-        $text = str_replace("<ignore>//</ignore>", "//", $text);
-        $text = str_replace("<ignore>**</ignore>", "**", $text);
-        $text = str_replace("<ignore>__</ignore>", "__", $text);
-        $text = str_replace("<ignore>\\\\</ignore>", "\\\\", $text);
+        $text = str_replace("<ignore><ignore>''</ignore></ignore>", "''", $text);
+        $text = str_replace("<ignore><ignore>//</ignore></ignore>", "//", $text);
+        $text = str_replace("<ignore><ignore>**</ignore></ignore>", "**", $text);
+        $text = str_replace("<ignore><ignore>__</ignore></ignore>", "__", $text);
+        $text = str_replace("<ignore><ignore>\\\\</ignore></ignore>", "\\\\", $text);
 
         // ignore links in wikitext (outside of dokuwiki-links)
         $text = preg_replace('/<ignore>(\S+:\/\/\S+)<\/ignore>/', '${1}', $text);
