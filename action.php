@@ -849,7 +849,17 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
         $text = preg_replace('/\{\{([\s\S]*?)(\?[\s\S]*?)?((\|)([\s\S]*?))?}}/', '<ignore>{{${1}${2}${4}</ignore>${5}<ignore>}}</ignore>', $text);
 
         // prevent deepl from messing with tables
+        $text = str_replace("  ^  ", "<ignore>  ^  </ignore>", $text);
+        $text = str_replace("  ^ ", "<ignore>  ^ </ignore>", $text);
+        $text = str_replace(" ^  ", "<ignore> ^  </ignore>", $text);
+        $text = str_replace("^  ", "<ignore>^  </ignore>", $text);
+        $text = str_replace("  ^", "<ignore>  ^</ignore>", $text);
         $text = str_replace("^", "<ignore>^</ignore>", $text);
+        $text = str_replace("  |  ", "<ignore>  |  </ignore>", $text);
+        $text = str_replace("  | ", "<ignore>  | </ignore>", $text);
+        $text = str_replace(" |  ", "<ignore> |  </ignore>", $text);
+        $text = str_replace("|  ", "<ignore>|  </ignore>", $text);
+        $text = str_replace("  |", "<ignore>  |</ignore>", $text);
         $text = str_replace("|", "<ignore>|</ignore>", $text);
 
         // prevent deepl from doing strange things with dokuwiki syntax
@@ -893,7 +903,17 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
 
         // prevent deepl from messing with tables
         $text = str_replace("<ignore>^</ignore>", "^", $text);
+        $text = str_replace("<ignore>^  </ignore>", "^  ", $text);
+        $text = str_replace("<ignore>  ^</ignore>", "  ^", $text);
+        $text = str_replace("<ignore> ^  </ignore>", " ^  ", $text);
+        $text = str_replace("<ignore>  ^ </ignore>", "  ^ ", $text);
+        $text = str_replace("<ignore>  ^  </ignore>", "  ^  ", $text);
         $text = str_replace("<ignore>|</ignore>", "|", $text);
+        $text = str_replace("<ignore>|  </ignore>", "|  ", $text);
+        $text = str_replace("<ignore>  |</ignore>", "  |", $text);
+        $text = str_replace("<ignore> |  </ignore>", " |  ", $text);
+        $text = str_replace("<ignore>  | </ignore>", "  | ", $text);
+        $text = str_replace("<ignore>  |  </ignore>", "  |  ", $text);
 
         $text = str_replace("<ignore><ignore>''</ignore></ignore>", "''", $text);
         $text = str_replace("<ignore><ignore>//</ignore></ignore>", "//", $text);
