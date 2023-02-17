@@ -742,6 +742,9 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
             // skip interwiki links
             if (strpos($match[1], '>') !== false) continue;
 
+            // skip mail addresses
+            if (strpos($match[1], '@') !== false) continue;
+
             // skip windows share links
             if (strpos($match[1], '\\\\') !== false) continue;
 
