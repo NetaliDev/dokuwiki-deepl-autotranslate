@@ -719,6 +719,24 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
         return explode(' ', $push_langs);
     }
 
+    /**
+     * Is the given ID a relative path?
+     *
+     * Always returns false if keep_relative is disabled.
+     *
+     * @param string $id
+     * @return bool
+     */
+    private function isRelativeLink($id)
+    {
+        if (!$this->getConf('keep_relative')) return false;
+        if ($id === '') return false;
+        if (strpos($id, ':') === false) return true;
+        if ($id[0] === '.') return true;
+        if ($id[0] === '~') return true;
+        return false;
+    }
+
     private function patch_links($text, $target_lang, $ns): string {
         /*
          * 1. Find links in [[ aa:bb ]] or [[ aa:bb | cc ]]
@@ -750,6 +768,7 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
             if (strpos($match[1], '\\\\') !== false) continue;
 
             $resolved_id = trim($match[1]);
+            if($this->isRelativeLink($resolved_id)) continue;
 
             resolve_pageid($ns, $resolved_id, $exists);
 
@@ -801,6 +820,8 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
 
             $resolved_id = trim($match[2]);
             $params = trim($match[3]);
+
+            if($this->isRelativeLink($resolved_id)) continue;
 
             resolve_mediaid($ns, $resolved_id, $exists);
 
