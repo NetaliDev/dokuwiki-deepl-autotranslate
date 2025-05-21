@@ -689,12 +689,13 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
         }
 
         $http = new DokuHTTPClient();
+        $http->keep_alive = false;
 
         $http->headers = array('Authorization' => 'DeepL-Auth-Key ' . $this->getConf('api_key'));
 
         $raw_response = $http->post($url, $data);
 
-        if ($http->status >= 400) {
+        if ($http->status >= 400 || $http->status < 200) {
             // add error messages
             switch ($http->status) {
                 case 403:
@@ -704,7 +705,7 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
                 case 456:
                     throw new \Exception($this->getLang('msg_translation_fail_quota_exceeded'), 456);
                 default:
-                    throw new \Exception($this->getLang('msg_translation_fail'), $http->status);
+                    throw new \Exception($this->getLang('msg_translation_fail'), $http->status ?: 500);
             }
         }
 
