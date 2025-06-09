@@ -104,14 +104,14 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
         if (array_key_exists($lang_ns, $this->langs)) {
             if($this->getConf('default_lang_in_ns') and $lang_ns === $this->get_default_lang()) {
                 // if the default lang is in a namespace and we are in that namespace --> push translate
-                $this->push_translate($event);
+                $this->push_translate_event($event);
             } else {
                 // in language namespace --> autotrans direct
                 $this->autotrans_direct($event);
             }
         } else {
             // not in language namespace --> push translate
-            $this->push_translate($event);
+            $this->push_translate_event($event);
         }
     }
 
@@ -206,9 +206,10 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
         }
 
         $org_page_info = $this->get_org_page_info();
-        $translated_text = $this->deepl_translate($org_page_info["text"], $this->get_target_lang(), $org_page_info["ns"]);
-
-        if ($translated_text === '') {
+        try {
+            $translated_text = $this->deepl_translate($org_page_info["text"], $this->get_target_lang(), $org_page_info["ns"]);
+        } catch (\Exception $e) {
+            msg($e->getMessage(), -1);
             return;
         }
 
@@ -227,10 +228,15 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
 
         $org_page_info = $this->get_org_page_info();
 
-        $event->data['tpl'] = $this->deepl_translate($org_page_info["text"], $this->get_target_lang(), $org_page_info["ns"]);
+        try {
+            $event->data['tpl'] = $this->deepl_translate($org_page_info["text"], $this->get_target_lang(), $org_page_info["ns"]);
+        } catch (\Exception $e) {
+            msg($e->getMessage(), -1);
+            return;
+        }
     }
 
-    private function push_translate(Doku_Event $event): void {
+    private function push_translate_event(Doku_Event $event): void {
         global $ID;
 
         // check if action is translate
@@ -242,48 +248,55 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
             return;
         }
 
-        if (!$this->check_do_push_translate()) {
-            send_redirect(wl($ID));
-            return;
-        }
-
         // push translate
         $push_langs = $this->get_push_langs();
         $org_page_text = rawWiki($ID);
         foreach ($push_langs as $lang) {
-            // skip invalid languages
-            if (!array_key_exists($lang, $this->langs)) {
-                msg($this->getLang('msg_translation_fail_invalid_lang') . $lang, -1);
-                continue;
+            try {
+                $this->push_translate($ID, $org_page_text, $lang);
+            } catch (\Exception $e) {
+                msg($e->getMessage(), -1);
             }
-
-            if ($this->getConf('default_lang_in_ns')) {
-                // if default lang is in ns: replace language namespace in ID
-                $split_id = explode(':', $ID);
-                array_shift($split_id);
-                $lang_id = implode(':', $split_id);
-                $lang_id = $lang . ':' . $lang_id;
-            } else {
-                // if default lang is not in ns: add language namespace to ID
-                $lang_id = $lang . ':' . $ID;
-            }
-
-            // check permissions
-            $perm = auth_quickaclcheck($lang_id);
-            $exists = page_exists($lang_id);
-            if (($exists and $perm < AUTH_EDIT) or (!$exists and $perm < AUTH_CREATE)) {
-                msg($this->getLang('msg_translation_fail_no_permissions') . $lang_id, -1);
-                continue;
-            }
-
-            $translated_text = $this->deepl_translate($org_page_text, $lang, getNS($ID));
-            saveWikiText($lang_id, $translated_text, 'Automatic push translation');
         }
 
         msg($this->getLang('msg_translation_success'), 1);
 
         // reload the page after translation to clear the action
         send_redirect(wl($ID));
+    }
+
+    public function push_translate($id, $org_page_text, $lang): string {
+        if (!$this->check_do_push_translate()) {
+            throw new \Exception('Failed push translate checks', 400);
+        }
+
+        // skip invalid languages
+        if (!array_key_exists($lang, $this->langs)) {
+            throw new \Exception($this->getLang('msg_translation_fail_invalid_lang') . $lang, 404);
+        }
+
+        if ($this->getConf('default_lang_in_ns')) {
+            // if default lang is in ns: replace language namespace in ID
+            $split_id = explode(':', $id);
+            array_shift($split_id);
+            $lang_id = implode(':', $split_id);
+            $lang_id = $lang . ':' . $lang_id;
+        } else {
+            // if default lang is not in ns: add language namespace to ID
+            $lang_id = $lang . ':' . $id;
+        }
+
+        // check permissions
+        $perm = auth_quickaclcheck($lang_id);
+        $exists = page_exists($lang_id);
+        if (($exists and $perm < AUTH_EDIT) or (!$exists and $perm < AUTH_CREATE)) {
+            throw new \Exception($this->getLang('msg_translation_fail_no_permissions') . $lang_id, 403);
+        }
+
+        $translated_text = $this->deepl_translate($org_page_text, $lang, getNS($id));
+        saveWikiText($lang_id, $translated_text, 'Automatic push translation');
+
+        return $lang_id;
     }
 
     private function handle_glossary_init(Doku_Event $event): void {
@@ -643,8 +656,7 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
 
     private function deepl_translate($text, $target_lang, $org_ns): string {
         if (!trim($this->getConf('api_key'))) {
-            msg($this->getLang('msg_translation_fail_bad_key'), -1);
-            return '';
+            throw new \Exception($this->getLang('msg_translation_fail_bad_key'), 400);
         }
 
         $text = $this->patch_links($text, $target_lang, $org_ns);
@@ -677,33 +689,27 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
         }
 
         $http = new DokuHTTPClient();
+        $http->keep_alive = false;
 
         $http->headers = array('Authorization' => 'DeepL-Auth-Key ' . $this->getConf('api_key'));
 
         $raw_response = $http->post($url, $data);
 
-        if ($http->status >= 400) {
+        if ($http->status >= 400 || $http->status < 200) {
             // add error messages
             switch ($http->status) {
                 case 403:
-                    msg($this->getLang('msg_translation_fail_bad_key'), -1);
-                    break;
+                    throw new \Exception($this->getLang('msg_translation_fail_bad_key'), 403);
                 case 404:
-                    msg($this->getLang('msg_translation_fail_invalid_glossary'), -1);
-                    break;
+                    throw new \Exception($this->getLang('msg_translation_fail_invalid_glossary'), 404);
                 case 456:
-                    msg($this->getLang('msg_translation_fail_quota_exceeded'), -1);
-                    break;
+                    throw new \Exception($this->getLang('msg_translation_fail_quota_exceeded'), 456);
                 default:
-                    msg($this->getLang('msg_translation_fail'), -1);
-                    break;
+                    throw new \Exception($this->getLang('msg_translation_fail'), $http->status ?: 500);
             }
-
-            // if any error occurred return an empty string
-            return '';
         }
 
-        $json_response = json_decode($raw_response, true);
+        $json_response = json_decode($raw_response, true, JSON_THROW_ON_ERROR);
         $translated_text = $json_response['translations'][0]['text'];
 
         $translated_text = $this->remove_ignore_tags($translated_text);
