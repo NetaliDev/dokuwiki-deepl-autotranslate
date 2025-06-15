@@ -733,8 +733,7 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
      * @param string $id
      * @return bool
      */
-    private function isRelativeLink($id)
-    {
+    private function is_relative_link($id): bool {
         if (!$this->getConf('keep_relative')) return false;
         if ($id === '') return false;
         if (strpos($id, ':') === false) return true;
@@ -774,7 +773,7 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
             if (strpos($match[1], '\\\\') !== false) continue;
 
             $resolved_id = trim($match[1]);
-            if($this->isRelativeLink($resolved_id)) continue;
+            if($this->is_relative_link($resolved_id)) continue;
 
             resolve_pageid($ns, $resolved_id, $exists);
 
@@ -827,7 +826,7 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
             $resolved_id = trim($match[2]);
             $params = trim($match[3]);
 
-            if($this->isRelativeLink($resolved_id)) continue;
+            if($this->is_relative_link($resolved_id)) continue;
 
             resolve_mediaid($ns, $resolved_id, $exists);
 
