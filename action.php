@@ -866,6 +866,10 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
         // prevent deepl from breaking headings
         $text = preg_replace('/={1,6}/', '<ignore>${0}</ignore>', $text);
 
+        // prevent deepl from with some page lists
+        $text = str_replace("{{top}}", "<ignore>{{top}}</ignore>", $text);
+        $text = str_replace("{{rating}}", "<ignore>{{rating}}</ignore>", $text);
+
         // prevent deepl from messing with nocache-instructions
         $text = str_replace("~~NOCACHE~~", "<ignore>~~NOCACHE~~</ignore>", $text);
 
@@ -957,6 +961,10 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
 
         $text = preg_replace('/<ignore>\[\[([\s\S]*?)(\|)?(<\/ignore>)([\s\S]*?)?<ignore>]]<\/ignore>/', '[[${1}${2}${4}]]', $text);
         $text = preg_replace('/<ignore>\{\{([\s\S]*?)(\|)?(<\/ignore>)([\s\S]*?)?<ignore>}}<\/ignore>/', '{{${1}${2}${4}}}', $text);
+
+        // prevent deepl from with some page lists
+        $text = str_replace("<ignore>{{top}}</ignore>", "{{top}}", $text);
+        $text = str_replace("<ignore>{{rating}}</ignore>", "{{rating}}", $text);
 
         // prevent deepl from messing with smileys
         $smileys = array_keys(getSmileys());
