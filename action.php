@@ -671,6 +671,11 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
             'text' => $text
         );
 
+        // use v1 of tag handling (not as strict XML parsing as default v2 - in 2026)
+        if ($this->getConf('tag_handling_v1')) {
+            $data['tag_handling_version'] = 'v1';
+        }
+
         // check if glossaries are enabled
         if ($this->get_glossary_ns()) {
             $src = substr($this->get_default_lang(), 0, 2);
@@ -705,6 +710,10 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
                 case 456:
                     throw new \Exception($this->getLang('msg_translation_fail_quota_exceeded'), 456);
                 default:
+                    if ($this->getConf('api_log_errors')) {
+                        $logger = \dokuwiki\Logger::getInstance('deeplautotranslate');
+                        $logger->log("$http->status " . $http->resp_body, $data['text']);
+                    }
                     throw new \Exception($this->getLang('msg_translation_fail'), $http->status ?: 500);
             }
         }
