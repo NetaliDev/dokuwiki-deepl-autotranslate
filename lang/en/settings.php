@@ -2,7 +2,6 @@
 
 $lang['api_key'] = 'DeepL-API-Key';
 $lang['api'] = 'DeepL-API that should be used';
-$lang['tag_handling_v1'] = 'Use old, more lax, tag handling (v1) in the API. Try if translations fail.';
 $lang['api_log_errors'] = 'Log API errors';
 $lang['mode'] = 'Default operation mode of the plugin';
 $lang['show_button'] = 'Show button for forced-translations';

@@ -2,7 +2,6 @@
 
 $meta['api_key'] = array('string');
 $meta['api'] = array('multichoice', '_choices' => array('free', 'pro'));
-$meta['tag_handling_v1'] = array('onoff');
 $meta['api_log_errors'] = array('onoff');
 $meta['mode'] = array('multichoice', '_choices' => array('direct', 'editor'));
 $meta['show_button'] = array('onoff');

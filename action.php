@@ -669,13 +669,9 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
             'target_lang' => $this->langs[$target_lang],
             'tag_handling' => 'xml',
             'ignore_tags' => 'ignore',
+            'tag_handling_version' => 'v1',
             'text' => $text
         );
-
-        // use v1 of tag handling (not as strict XML parsing as default v2 - in 2026)
-        if ($this->getConf('tag_handling_v1')) {
-            $data['tag_handling_version'] = 'v1';
-        }
 
         // check if glossaries are enabled
         if ($this->get_glossary_ns()) {
