@@ -2,6 +2,7 @@
 
 $lang['api_key'] = 'DeepL-API-Key';
 $lang['api'] = 'DeepL-API, die verwendet werden soll';
+$lang['api_log_errors'] = 'API-Fehler loggen';
 $lang['mode'] = 'Standard-Modus des Plugins';
 $lang['show_button'] = 'Button für erzwungene Übersetzungen anzeigen';
 $lang['push_langs'] = 'Liste der Sprachen (ISO Codes) für Push-Übersetzungen, mittels Leerzeichen separiert';
