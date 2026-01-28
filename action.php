@@ -32,6 +32,7 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
         'lt' => 'LT',
         'lv' => 'LV',
         'nl' => 'NL',
+        'no' => 'NB',
         'pl' => 'PL',
         'pt' => 'PT-PT',
         'ro' => 'RO',
