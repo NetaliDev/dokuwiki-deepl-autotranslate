@@ -944,6 +944,9 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
         // prevent deepl from messing with nocache-instructions
         $text = str_replace("<ignore>~~NOCACHE~~</ignore>", "~~NOCACHE~~", $text);
 
+        // prevent deepl from breaking headings
+        $text = preg_replace('/<ignore>(={1,6})<\/ignore>/','${1}', $text);
+
         // prevent deepl from messing with tables
         $text = str_replace("<ignore>^</ignore>", "^", $text);
         $text = str_replace("<ignore>^  </ignore>", "^  ", $text);
@@ -986,9 +989,6 @@ class action_plugin_deeplautotranslate extends DokuWiki_Action_Plugin {
 
         // fix for plugins like tag or template
         $text = preg_replace('/<ignore>(\{\{[\s\w]+?>[\s\S]*?}})<\/ignore>/', '${1}', $text);
-
-        // prevent deepl from breaking headings
-        $text = preg_replace('/<ignore>(={1,6})<\/ignore>/','${1}', $text);
 
         // ignore every other xml-like tags (the tags themselves, not their content), otherwise deepl would break the formatting
         $text = preg_replace('/<ignore>(<[\s\S]+?>)<\/ignore>/', '${1}', $text);
